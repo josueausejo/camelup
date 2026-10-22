@@ -275,7 +275,11 @@ function renderLobby() {
       codeEl.value = parseCode(e.clipboardData?.getData('text') ?? '');
     };
     $('join').onclick = join;
-    codeEl.onkeydown = (e) => e.key === 'Enter' && join();
+    // Ojo: un manejador `onkeydown = ...` que devuelve `false` cancela la tecla; por eso se usa
+    // addEventListener y solo se reacciona a Enter (antes el campo se tragaba todas las letras).
+    codeEl.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') join();
+    });
     sound.attach($('lobby-sound'));
     if (!myName()) $('name').focus();
     return;
