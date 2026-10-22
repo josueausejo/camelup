@@ -15,6 +15,7 @@ import {
   type RevealedDie,
   type SetupRoll,
 } from '../../../shared/game';
+import { sfx } from '../audio/sfx';
 import { Camel } from './camel';
 import { Circuit, SPACE_LENGTH, TRACK, headingOf, spaceDistance, trackPoint } from './circuit';
 import { buildEnvironment, type Environment } from './environment';
@@ -395,6 +396,11 @@ export class BoardScene {
     return this.tween(ms, () => {});
   }
 
+  /** Reproduce un efecto salvo que se esté saltando la animación. */
+  private sound(play: () => void) {
+    if (!this.skipping) play();
+  }
+
   private shake(amount: number) {
     this.shakeAmt = Math.max(this.shakeAmt, amount);
   }
@@ -495,6 +501,7 @@ export class BoardScene {
     if (t < this.fireworksUntil && t > this.nextRocket) {
       this.nextRocket = t + rand(0.25, 0.6);
       const palette = ['#ff5a5a', '#ffd35a', '#5ad1ff', '#9b5aff', '#5aff8a', '#ff8af0'];
+      this.sound(() => sfx.fireworkLaunch());
       this.rockets.push({
         p: new THREE.Vector3(rand(-7, 7), 0.5, rand(-7, 7)),
         v: new THREE.Vector3(rand(-0.6, 0.6), rand(9, 12), rand(-0.6, 0.6)),
@@ -522,6 +529,7 @@ export class BoardScene {
           drag: 1.4,
         });
       }
+      this.sound(() => sfx.fireworkPop());
       this.shake(0.05);
       return false;
     });
@@ -926,6 +934,8 @@ export class BoardScene {
       c.mood = isRacing(id) && dir < 0 ? 'scared' : 'run';
       c.stackIndex = 0;
     });
+    if (crazy) this.sound(() => sfx.crazy());
+    else if (dir < 0) this.sound(() => sfx.scared());
     // anticipación: se agachan para coger impulso
     await this.tween(130, (k) => camels.forEach((c) => (c.crouch = Math.sin((k * Math.PI) / 2))));
     camels.forEach((c) => {
@@ -942,6 +952,7 @@ export class BoardScene {
       const targets = step.unit.map((id, i) => this.camelTarget(s, baseIndex + i, id));
       const r0 = camels.map((c) => c.root.rotation.y);
       const hop = 0.9 + (under ? below.length * CAMEL_STACK : 0);
+      this.sound(() => sfx.hop());
       const jobs = [
         this.tween(under ? 420 : 300, (k) => {
           const e = easeInOut(k);
@@ -965,6 +976,7 @@ export class BoardScene {
       ];
       if (under) {
         // abucheo: la unidad acaba debajo y todos se llevan un buen susto
+        this.sound(() => sfx.scared());
         camels.forEach((c) => (c.mood = 'scared'));
         // los camellos de destino se elevan para dejar sitio debajo
         below.forEach((id, i) => {
@@ -981,6 +993,7 @@ export class BoardScene {
         c.land();
       });
       if (under) below.forEach((id) => this.camels.get(id)!.land());
+      this.sound(() => sfx.land(last ? step.unit.length : 0.5));
       this.dustPuff(cellPosition(s), last ? 14 : 7);
     }
     camels.forEach((c) => (c.running = false));
@@ -996,15 +1009,18 @@ export class BoardScene {
       const color = this.seatColor(step.spectatorOwner);
       spec?.tile.excite();
       if (spec?.side === 'cheer') {
+        this.sound(() => sfx.cheer());
         this.confettiBurst(at, ['#4caf50', '#ffeb3b', '#ffffff', color], 50, 5);
         this.sparks(at, '#8aff7a', 30, 3);
         this.texts.spawn('¡Ánimo!', '#b8ff9a', at.clone().add(new THREE.Vector3(0, 2.2, 0)), 0.8);
       } else {
         this.dustPuff(at, 22, '#8a4a3a', 2.2);
+        this.sound(() => sfx.boo());
         this.sparks(at, '#ff5a3a', 20, 2.5);
         this.texts.spawn('¡Buuu!', '#ff9a8a', at.clone().add(new THREE.Vector3(0, 2.2, 0)), 0.8);
       }
       this.coinBurst(at, 3);
+      this.sound(() => sfx.coin());
       this.texts.spawn('+1 LE', color, at.clone().add(new THREE.Vector3(0, 1.3, 0)), 0.7);
       await this.wait(500);
     }
@@ -1046,12 +1062,14 @@ export class BoardScene {
     c.attach(hand.group);
     this.dustPuff(PYRAMID_POS.clone().setY(0.05), 16, '#dcb47a', 2);
     const lift = 2.4;
+    this.sound(() => sfx.whoosh(true));
     await this.tween(250, (k) => {
       const e = easeOut(k);
       c.position.y = grip.y + e * lift;
       c.rotation.z = e * 0.2;
     });
 
+    this.sound(() => sfx.pyramidShake(0.56));
     this.shake(0.06);
     await this.tween(560, (k) => {
       const w = k * Math.PI * 11;
@@ -1117,6 +1135,7 @@ export class BoardScene {
     const door = await this.grabAndShake(starter);
     const putBack = this.returnPyramid();
 
+    this.sound(() => sfx.drumroll(1.1));
     let dice = await this.showSetupDice(racing, door);
     const back = this.returnSetupDice(dice);
     await putBack;
@@ -1181,6 +1200,7 @@ export class BoardScene {
           )
           .then(() => {
             d.quaternion.copy(q);
+            this.sound(() => sfx.reveal());
             this.sparks(target.clone().addScaledVector(back, -1.5), color, 18, 4, { up: 0, gravity: 0 });
           }),
       ),
@@ -1214,6 +1234,7 @@ export class BoardScene {
           .then(() => {
             this.world.remove(d);
             this.sparks(apex, '#ffd36a', 8, 1.6);
+            this.sound(() => sfx.pop());
           });
       }),
     );
@@ -1232,6 +1253,7 @@ export class BoardScene {
     camel.stackIndex = 0;
     this.dustPuff(from, 10, '#dcb47a', 1.2);
     await this.tween(220, (k) => root.scale.setScalar(CAMEL_SCALE * Math.max(0.01, easeOutBack(k))));
+    this.sound(() => (id === 'white' || id === 'black' ? sfx.crazy() : sfx.pop()));
     camel.running = true;
     const hops = Math.max(2, Math.ceil(Math.hypot(target.pos.x - from.x, target.pos.z - from.z) / 2.4));
     const r0 = root.rotation.y;
@@ -1239,6 +1261,7 @@ export class BoardScene {
     for (let h = 0; h < hops; h++) {
       const a = from.clone().lerp(target.pos, h / hops);
       const b = from.clone().lerp(target.pos, (h + 1) / hops);
+      this.sound(() => sfx.hop());
       const last = h === hops - 1;
       await this.tween(280, (k) => {
         camel.hop = k;
@@ -1249,6 +1272,7 @@ export class BoardScene {
       camel.hop = -1;
       camel.land();
       this.dustPuff(b.clone().setY(TILE_TOP), last ? 12 : 5);
+      this.sound(() => sfx.land(last ? 1 : 0.5));
     }
     camel.running = false;
     camel.mood = 'happy';
@@ -1275,6 +1299,7 @@ export class BoardScene {
     this.pyramid.group.position.copy(PYRAMID_POS);
     this.pyramid.group.rotation.set(0, 0, 0);
     this.dustPuff(PYRAMID_POS.clone().setY(0.05), 22, '#dcb47a', 2.6);
+    this.sound(() => sfx.thud());
     this.shake(0.1);
     await this.tween(120, (k) => hand.setGrip(1 - k));
     const from = hand.group.position.clone();
@@ -1302,6 +1327,7 @@ export class BoardScene {
     const spin = new THREE.Vector3(rand(-1, 1), rand(-1, 1), rand(-1, 1)).normalize();
 
     // 1. sale disparado hacia la pantalla girando
+    this.sound(() => sfx.whoosh(true));
     die.position.copy(start);
     die.scale.setScalar(0.4);
     await this.tween(450, (k) => {
@@ -1321,6 +1347,7 @@ export class BoardScene {
     });
 
     // 2. destello y se queda en grande un momento
+    this.sound(() => sfx.reveal());
     const behind = show.clone().addScaledVector(back, -2.5);
     this.glow.emit({ pos: behind, vel: new THREE.Vector3(), color, alpha: 0.55, size: viewH * 0.35, sizeEnd: viewH * 0.55, life: 1.1 });
     for (let i = 0; i < Math.ceil(48 * this.fx); i++) {
@@ -1344,6 +1371,7 @@ export class BoardScene {
     });
 
     // 3. cae a su sitio en el tablero
+    this.sound(() => sfx.whoosh(false));
     const qStart = die.quaternion.clone();
     const fallSpin = new THREE.Vector3(rand(-1, 1), rand(-1, 1), rand(-1, 1)).normalize();
     await this.tween(480, (k) => {
@@ -1360,12 +1388,14 @@ export class BoardScene {
     die.scale.setScalar(1);
     die.castShadow = true;
     this.dustPuff(slot.clone().setY(0.05), 14, '#d9b27a', 1.4);
+    this.sound(() => sfx.dieClack(1));
     this.sparks(slot.clone().setY(0.4), color, 26, 2.5, { up: 1.5 });
     this.shake(0.08);
     await this.tween(260, (k) => {
       die.position.y = slot.y + Math.abs(Math.sin(k * Math.PI * 2)) * 0.32 * (1 - k);
     });
     this.dustPuff(slot.clone().setY(0.05), 5, '#d9b27a', 0.8);
+    this.sound(() => sfx.dieClack(0.5));
 
   }
 
@@ -1390,6 +1420,7 @@ export class BoardScene {
             }).then(() => {
               this.world.remove(d);
               this.sparks(apex, '#ffd36a', 12, 2);
+              this.sound(() => sfx.pop());
             });
           }),
         ),
@@ -1434,6 +1465,7 @@ export class BoardScene {
     const stack = this.bets.get(color)!;
     const ticket = stack.tickets.pop();
     if (!ticket) return;
+    this.sound(() => sfx.ticket());
     this.sparks(ticket.getWorldPosition(new THREE.Vector3()), CAMEL_COLORS[color], 20, 2);
     await this.flyToPlayer(ticket, CAMEL_COLORS[color]);
   }
@@ -1469,6 +1501,7 @@ export class BoardScene {
         stack.tickets.push(t);
         jobs.push(
           this.wait(ci * 90 + i * 110).then(() => {
+            this.sound(() => sfx.card());
             t.visible = true;
             return this.tween(600, (k) => {
               t.position.y = target.y + (1 - easeOutBounce(k)) * 5;
@@ -1522,6 +1555,7 @@ export class BoardScene {
   }
 
   private async playFinalCard(pile: FinalPile, playerId: string) {
+    this.sound(() => sfx.card());
     const i = this.piles[pile].length;
     const card = this.makeCard(pile, i, playerId);
     const end = card.position.clone();
@@ -1543,6 +1577,7 @@ export class BoardScene {
         this.glow.emit({ pos: card.position.clone(), vel: new THREE.Vector3(0, 0.2, 0), color: col(color), size: 0.3, sizeEnd: 0, life: 0.5 });
     });
     this.dustPuff(end, 8, '#e6c48c', 1);
+    this.sound(() => sfx.card());
     this.sparks(end.clone().setY(0.3), color, 16, 1.8);
   }
 
@@ -1602,6 +1637,7 @@ export class BoardScene {
       g.rotation.y = rot + (1 - easeOut(k)) * Math.PI * 1.5;
     });
     this.dustPuff(g.position.clone(), 18, '#e2bd84', 2);
+    this.sound(() => sfx.thud());
     this.sparks(g.position.clone().setY(0.4), color, 18, 2);
     tile.excite();
   }
@@ -1631,6 +1667,7 @@ export class BoardScene {
   private async celebrateStage(state: GameState) {
     const s = state.lastStage;
     if (!s) return;
+    this.sound(() => sfx.fanfare());
     const lead = this.camelTop(s.leader);
     const second = this.camelTop(s.second);
     this.texts.spawn('1º', '#ffd35a', lead.clone().add(new THREE.Vector3(0, 1.2, 0)), 0.9, 2.4);
@@ -1641,6 +1678,7 @@ export class BoardScene {
     const leader = this.camels.get(s.leader)!;
     leader.land();
     leader.mood = 'happy';
+    this.sound(() => sfx.happy());
     this.shake(0.08);
     await this.wait(1300);
     leader.mood = 'idle';
@@ -1649,6 +1687,7 @@ export class BoardScene {
   private celebrateRace(state: GameState) {
     const f = state.final;
     if (!f) return;
+    this.sound(() => sfx.bigFanfare());
     this.fireworksUntil = this.time + 9;
     this.circuit.cheer(9, this.time);
     this.confettiRainUntil = this.time + 5;

@@ -2,6 +2,7 @@ import type { Socket } from 'socket.io-client';
 import { EMOJIS, CHAT_MAX_LENGTH, type ChatMessage } from '../../shared/chat';
 import type { ClientToServer, RoomView, ServerToClient } from '../../shared/protocol';
 import { PLAYER_COLORS } from './scene/models';
+import { sfx } from './audio/sfx';
 
 // Chat de grupo con emojis animados (Noto Animated Emoji de Google; si no cargan,
 // se muestra el emoji normal con una animación CSS).
@@ -146,6 +147,8 @@ export class Chat {
     if (this.messages.length > 60) this.messages.shift();
     this.appendMessage(m, true);
     if (m.emoji) this.launchReaction(m);
+    if (m.emoji) sfx.emojiPop();
+    else sfx.message();
     if (!this.open && m.playerId !== this.me) {
       this.setUnread(this.unread + 1);
       if (!m.emoji) this.showPeek(m);

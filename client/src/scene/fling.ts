@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { FlingData } from '../../../shared/protocol';
+import { sfx } from '../audio/sfx';
 import type { Crowd } from './circuit';
 
 // Personas del público que se pueden coger de las gradas y lanzar por la pista.
@@ -127,6 +128,7 @@ class Ragdoll {
         this.limbs(1.3 * flail, 0.9 * Math.sin(t * 18));
         if (k >= 1) {
           this.setPhase('flying');
+          sfx.scream();
           hooks.text(this.pos.clone().add(new THREE.Vector3(0, 0.6, 0)), '¡Aaah!', '#ffffff');
         }
         break;
@@ -154,6 +156,7 @@ class Ragdoll {
             }
             this.vel.y = Math.max(this.vel.y, 3);
             o.hit();
+            sfx.bonk();
             hooks.text(this.pos.clone().add(new THREE.Vector3(0, 0.5, 0)), '¡Bonk!', '#ffd35a');
           }
         }
@@ -167,9 +170,12 @@ class Ragdoll {
             this.vel.z *= 0.65;
             this.spin.multiplyScalar(0.6);
             hooks.dust(this.pos.clone().setY(g), 8);
+            sfx.thud();
             if (this.bounces === 1) hooks.text(this.pos.clone().add(new THREE.Vector3(0, 0.6, 0)), '¡Ay!', '#ff9a8a');
+            if (this.bounces === 1) sfx.ouch();
           } else {
             hooks.dust(this.pos.clone().setY(g), 12);
+            sfx.thud();
             this.vel.set(0, 0, 0);
             // normaliza los ángulos acumulados al girar en el aire antes de tumbarse
             const w = (a: number) => Math.atan2(Math.sin(a), Math.cos(a));
@@ -201,6 +207,7 @@ class Ragdoll {
         this.pos.y = g + LYING + (HALF - LYING) * k + Math.sin(k * Math.PI) * 0.15;
         b.rotation.set(0, this.yaw, (Math.PI / 2) * (1 - k));
         this.limbs(0.4 * (1 - k), 0);
+        if (k >= 1) sfx.dizzy();
         if (k >= 1) this.setPhase('dizzy');
         break;
       }
@@ -283,6 +290,7 @@ export class Flinger {
     const doll = this.spawn(seat);
     doll.setPhase('held');
     this.held = doll;
+    sfx.grab();
     return true;
   }
 
@@ -302,6 +310,7 @@ export class Flinger {
       v.y = Math.max(v.y, 0) + 3 + speed * 0.3;
       v.clampLength(0, 22);
       this.hooks.text(d.pos.clone().add(new THREE.Vector3(0, 0.6, 0)), '¡Aaah!', '#ffffff');
+      sfx.scream();
     }
     const spin = new THREE.Vector3(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).multiplyScalar(4 + speed);
     d.vel.copy(v);

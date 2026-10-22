@@ -1,6 +1,7 @@
 import type { CamelId, RacingColor } from '../../../shared/game';
 import { CAMEL_COLORS } from '../scene/models';
 import { camelSvg, coinSvg, dieHtml, pyramidSvg } from './art';
+import { sfx } from '../audio/sfx';
 
 // Tutorial interactivo en estilo cartoon. Lo presenta Kamil, un camello con fez;
 // en cada paso hay que hacer algo (tocar, elegir, lanzar) para poder avanzar.
@@ -102,6 +103,7 @@ class MiniTrack {
         restart(c, 'hop');
       }
       this.layout();
+      sfx.hop();
       await sleep(360);
       if (!last) this.stacks.set(space, target);
     }
@@ -110,6 +112,7 @@ class MiniTrack {
       c.classList.remove('walk');
       restart(c, 'land');
     }
+    sfx.land(unit.length);
   }
 
   tile(space: number, kind: 'cheer' | 'boo') {
@@ -147,7 +150,9 @@ function pyramid(stage: HTMLElement) {
     el: p,
     async roll(die: string) {
       restart(p, 'shake');
+      sfx.pyramidShake(0.5);
       await sleep(600);
+      sfx.reveal();
       out.innerHTML = die;
       restart(out, 'pop');
       await sleep(550);
@@ -167,6 +172,7 @@ const STEPS: Step[] = [
       point(m);
       m.onclick = () => {
         restart(m, 'jump');
+        sfx.boing();
         bubble.textContent = ['¡Yalla! 🐪', '¡Hola, hola!', '¡Qué alegría!'][Math.floor(Math.random() * 3)];
         restart(bubble, 'show');
         point(null);
@@ -197,6 +203,7 @@ const STEPS: Step[] = [
           got++;
           counter.querySelector('b')!.textContent = String(got);
           restart(counter, 'bump');
+          sfx.coin();
           if (got === 3) {
             burst(stage, ['#f2c14e', '#ffe08a']);
             done('¡Eso es! Empiezas la partida con 3 LE. ¡A por más!');
@@ -259,6 +266,8 @@ const STEPS: Step[] = [
         used = true;
         point(null);
         restart(die, 'roll');
+        sfx.dieClack();
+        sfx.crazy();
         await sleep(700);
         await track.move('black', -2, alive);
         done('¡El negro retrocedió 2 casillas con el rojo a cuestas y cayó sobre el verde! Los locos complican mucho las apuestas.');
@@ -290,11 +299,13 @@ const STEPS: Step[] = [
           if (solved) return;
           if (c !== 'green') {
             restart(t, 'nope');
+            sfx.error();
             say('Mmm… casi. Fíjate en la casilla más avanzada: allí, el que está más arriba de la pila va primero.');
             return;
           }
           solved = true;
           t.classList.add('taken');
+          sfx.ticket();
           const copy = t.cloneNode(true) as HTMLElement;
           copy.classList.remove('taken');
           copy.classList.add('in-hand');
@@ -343,6 +354,7 @@ const STEPS: Step[] = [
           for (const j of [3, 4, 5]) track.space(j).classList.remove('pick');
           const tile = track.tile(i, side);
           restart(tile, 'drop');
+          sfx.thud();
           say('¡Colocado! Veamos qué pasa si el amarillo cae ahí…');
           await sleep(700);
           if (!alive()) return;
@@ -350,6 +362,9 @@ const STEPS: Step[] = [
           await track.move('yellow', i - 1, alive);
           await sleep(250);
           restart(tile, 'excite');
+          if (side === 'cheer') sfx.cheer();
+          else sfx.boo();
+          sfx.coin();
           const coin = document.createElement('div');
           coin.className = 'tplus';
           coin.textContent = '+1 LE';
@@ -389,6 +404,7 @@ const STEPS: Step[] = [
           if (finished) return;
           hand.querySelectorAll('.tcard').forEach((x) => x.classList.remove('sel'));
           card.classList.add('sel');
+          sfx.card();
           chosen = card;
           say('…y ahora toca el montón de «Ganador» o «Perdedor».');
           point(win);
@@ -399,6 +415,7 @@ const STEPS: Step[] = [
         finished = true;
         point(null);
         chosen.classList.add('flip');
+        sfx.card();
         await sleep(450);
         pile.appendChild(chosen);
         chosen.classList.remove('sel');
@@ -432,6 +449,7 @@ const STEPS: Step[] = [
         c.onclick = () => {
           if (c.classList.contains('flipped')) return;
           c.classList.add('flipped');
+          sfx.card();
           if (++flipped === 4) {
             burst(stage, ['#f2c14e', '#c73a2f', '#2f78d0', '#3d9e4a', '#8547c0']);
             done('La carrera acaba cuando un camello cruza la meta. ¡Mucha suerte y a correr! 🐪');
@@ -569,6 +587,7 @@ export class Tutorial {
       done: (t) => {
         if (token !== this.token) return;
         this.completed.add(i);
+        sfx.success();
         this.root.querySelectorAll('.tut-dots i')[i]?.classList.add('done');
         this.setNext(true);
         if (t) this.say(t);
@@ -594,6 +613,7 @@ export class Tutorial {
     this.typing = window.setInterval(() => {
       n += 2;
       this.bubble.textContent = text.slice(0, n);
+      if (n % 4 === 0) sfx.talk();
       if (n >= text.length) this.finishTyping();
     }, 22);
   }

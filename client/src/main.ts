@@ -12,6 +12,10 @@ import {
   type SpectatorSide,
 } from '../../shared/game';
 import type { ClientToServer, RoomView, ServerToClient } from '../../shared/protocol';
+import { audio } from './audio/engine';
+import { music } from './audio/music';
+import { SoundPanel } from './audio/panel';
+import { sfx } from './audio/sfx';
 import { Chat } from './chat';
 import { Tutorial } from './tutorial';
 import './tutorial/tutorial.css';
@@ -53,7 +57,7 @@ const esc = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`)
 const socket: Socket<ServerToClient, ClientToServer> = io();
 let quality: Quality = store.get('camelup.quality') === 'low' ? 'low' : 'high';
 const scene = new BoardScene($('board'), quality);
-if (import.meta.env.DEV) Object.assign(window, { scene });
+if (import.meta.env.DEV) Object.assign(window, { scene, audio, music });
 
 // lanzamientos decorativos del público: se envían y reciben, pero no tocan la partida
 scene.onFling = (data) => room && socket.emit('fling', data);
@@ -62,6 +66,19 @@ socket.on('fling', (data) => scene.remoteFling(data));
 // tutorial: los demás jugadores ven que lo estás leyendo
 const tutorial = new Tutorial((open) => room && socket.emit('tutorial', open));
 $('help').onclick = () => tutorial.open();
+
+// sonido: panel de música y efectos, clic suave en los botones
+const sound = new SoundPanel();
+sound.attach($('sound'));
+document.addEventListener(
+  'click',
+  (e) => {
+    const b = (e.target as Element).closest?.('button');
+    // los botones del tutorial y de emojis ya tienen su propio sonido
+    if (b && !b.closest('.tut-stage, .emoji-bar') && !b.disabled) sfx.click();
+  },
+  true,
+);
 $('intro-skip').onclick = () => scene.skipIntro();
 
 const chat = new Chat(socket, me);
@@ -146,6 +163,7 @@ function myName() {
 }
 
 function toast(msg: string, info = false) {
+  if (!info) sfx.error();
   const t = $('toast');
   t.textContent = msg;
   t.className = info ? 'toast info' : 'toast';
@@ -169,6 +187,17 @@ function send(action: Action) {
 
 // ---------- Lobby ----------
 
+/** Extrae un código de sala (4 letras) de lo escrito o de un enlace de invitación pegado. */
+function parseCode(text: string) {
+  const fromLink = /sala=([a-z]+)/i.exec(text)?.[1] ?? text;
+  return fromLink.replace(/[^a-z]/gi, '').toUpperCase().slice(0, 4);
+}
+
+// El código del enlace de invitación (?sala=) se lee una vez y se quita de la barra de direcciones,
+// para que al recargar no reaparezca un código viejo.
+let inviteCode = parseCode(new URLSearchParams(location.search).get('sala') ?? '');
+if (new URLSearchParams(location.search).has('sala')) history.replaceState(null, '', location.pathname);
+
 function renderLobby() {
   $('hud').hidden = true;
   $('lobby').hidden = false;
@@ -176,16 +205,19 @@ function renderLobby() {
   const el = $('lobby-content');
 
   if (!room) {
-    const preset = new URLSearchParams(location.search).get('sala') ?? '';
+    // si el lobby se redibuja mientras escribes, se conserva lo escrito
+    const typedName = document.querySelector<HTMLInputElement>('#name')?.value;
+    const typedCode = document.querySelector<HTMLInputElement>('#code')?.value;
     el.innerHTML = `
       <label for="name">Tu nombre</label>
-      <input id="name" maxlength="16" placeholder="Ej. Martina" value="${esc(myName())}" />
+      <input id="name" maxlength="16" placeholder="Ej. Martina" value="${esc(typedName ?? myName())}" />
       <div class="row"><button class="primary" id="create" style="flex:1">Crear sala</button></div>
       <div class="divider">— o únete con un código —</div>
       <div class="row">
-        <input id="code" maxlength="4" placeholder="ABCD" value="${esc(preset)}" style="text-transform:uppercase;text-align:center;letter-spacing:4px;font-weight:800" />
+        <input id="code" placeholder="ABCD" value="${esc(typedCode ?? inviteCode)}" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-label="Código de la sala" style="text-transform:uppercase;text-align:center;letter-spacing:4px;font-weight:800" />
         <button id="join">Unirse</button>
-      </div>`;
+      </div>
+      <div class="row" style="justify-content:center;margin-top:14px"><button class="ghost" id="lobby-sound"><span class="ico">🔊</span> Sonido</button></div>`;
     const name = () => {
       const v = $<HTMLInputElement>('name').value.trim();
       if (!v) {
@@ -200,15 +232,51 @@ function renderLobby() {
       const n = name();
       if (n) socket.emit('createRoom', { playerId: me, name: n }, (res) => res.error && toast(res.error));
     };
+    const codeEl = $<HTMLInputElement>('code');
     const join = () => {
       const n = name();
-      const code = $<HTMLInputElement>('code').value.trim().toUpperCase();
+      const code = parseCode(codeEl.value);
       if (!n) return;
-      if (code.length !== 4) return toast('El código tiene 4 letras.');
-      socket.emit('joinRoom', { playerId: me, name: n, code }, (res) => res.error && toast(res.error));
+      if (code.length !== 4) {
+        toast('El código tiene 4 letras.');
+        codeEl.focus();
+        return;
+      }
+      socket.emit('joinRoom', { playerId: me, name: n, code }, (res) => {
+        if (!res.error) {
+          inviteCode = '';
+          return;
+        }
+        toast(res.error);
+        codeEl.focus();
+      });
+    };
+    // al tocar el campo se selecciona su contenido, así lo que escribas lo sustituye
+    // (se evita que el clic coloque el cursor y deshaga la selección)
+    let justFocused = false;
+    codeEl.onfocus = () => {
+      justFocused = true;
+      codeEl.select();
+      setTimeout(() => (justFocused = false), 300);
+    };
+    codeEl.onmouseup = (e) => {
+      if (justFocused) e.preventDefault();
+    };
+    // solo letras, en mayúsculas y máximo 4; si ya estaba lleno, lo que tecleas empieza un código nuevo
+    codeEl.oninput = (e) => {
+      const typed = (e as InputEvent).data;
+      const letters = codeEl.value.replace(/[^a-z]/gi, '');
+      const v = letters.length > 4 && typed ? parseCode(typed) : parseCode(codeEl.value);
+      if (codeEl.value !== v) codeEl.value = v;
+    };
+    // al pegar se usa solo lo pegado (un código o un enlace de invitación completo)
+    codeEl.onpaste = (e) => {
+      e.preventDefault();
+      codeEl.value = parseCode(e.clipboardData?.getData('text') ?? '');
     };
     $('join').onclick = join;
-    $('code').onkeydown = (e) => e.key === 'Enter' && join();
+    codeEl.onkeydown = (e) => e.key === 'Enter' && join();
+    sound.attach($('lobby-sound'));
     if (!myName()) $('name').focus();
     return;
   }
@@ -237,9 +305,11 @@ function renderLobby() {
     }
     <div class="row" style="justify-content:center;margin-top:8px">
       <button class="ghost chat-toggle" id="lobby-chat">💬 Chat de la sala<span class="badge" ${unread ? '' : 'hidden'}>${unread}</span></button>
+      <button class="ghost" id="lobby-sound"><span class="ico">🔊</span></button>
       <button class="ghost" id="leave-lobby">Salir</button>
     </div>`;
   $('lobby-chat').onclick = () => chat.toggle();
+  sound.attach($('lobby-sound'));
   $('copy').onclick = async () => {
     try {
       await navigator.clipboard.writeText(link);
@@ -509,6 +579,7 @@ function showFinal(g: GameState) {
 }
 
 function showTurnBanner() {
+  sfx.yourTurn();
   const b = $('turn-banner');
   b.hidden = false;
   b.classList.remove('show');
