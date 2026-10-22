@@ -332,6 +332,8 @@ const STEPS: Step[] = [
       pyr.el.disabled = true;
       const track = new MiniTrack(row, 6, 1.5);
       track.add('yellow', 1);
+      // casillas a las que el amarillo (en la 1) puede llegar con un dado de 1 a 3
+      const SPOTS = [2, 3, 4];
       let side: 'cheer' | 'boo' | null = null;
       let placed = false;
       point(cheer);
@@ -342,16 +344,16 @@ const STEPS: Step[] = [
         boo.classList.toggle('on', s === 'boo');
         say('…y ahora toca una casilla resaltada para colocar tu público.');
         point(track.space(4));
-        for (const i of [3, 4, 5]) track.space(i).classList.add('pick');
+        for (const i of SPOTS) track.space(i).classList.add('pick');
       };
       cheer.onclick = () => pick('cheer');
       boo.onclick = () => pick('boo');
-      for (const i of [3, 4, 5]) {
+      for (const i of SPOTS) {
         track.space(i).onclick = async () => {
           if (!side || placed) return;
           placed = true;
           point(null);
-          for (const j of [3, 4, 5]) track.space(j).classList.remove('pick');
+          for (const j of SPOTS) track.space(j).classList.remove('pick');
           const tile = track.tile(i, side);
           restart(tile, 'drop');
           sfx.thud();
