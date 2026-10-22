@@ -1,0 +1,14 @@
+# Despliegue en Render (https://render.com): un único servicio web que sirve
+# el cliente 3D (carpeta dist) y el servidor de partidas con Socket.io.
+services:
+  - type: web
+    name: camelup
+    runtime: node
+    plan: free
+    buildCommand: npm ci --include=dev && npm run build
+    startCommand: npm run serve
+    healthCheckPath: /
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: 22.13.1

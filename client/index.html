@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Camel Up Online</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐪</text></svg>" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Nunito:wght@400;600;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <div id="board"></div>
+
+    <section id="lobby" class="screen">
+      <div class="card lobby-card">
+        <h1>Camel Up</h1>
+        <p class="subtitle">La carrera de camellos más loca, online para 2–4 jugadores</p>
+        <div id="lobby-content"></div>
+      </div>
+    </section>
+
+    <section id="hud" hidden>
+      <header class="topbar">
+        <div class="brand">Camel Up</div>
+        <div id="status" class="status"></div>
+        <div class="view-buttons">
+          <button class="icon" id="help" title="Cómo jugar (tutorial)">📖</button>
+          <button class="icon chat-toggle" id="chat-toggle" title="Chat de la sala">💬<span class="badge" hidden></span></button>
+          <button class="icon" id="quality" title="Calidad gráfica">✨</button>
+          <button class="icon" id="rot-left" title="Girar a la izquierda">⟲</button>
+          <button class="icon" id="reset-view" title="Vista isométrica">⌂</button>
+          <button class="icon" id="rot-right" title="Girar a la derecha">⟳</button>
+          <button class="icon" id="leave" title="Salir de la sala">✕</button>
+        </div>
+      </header>
+      <aside id="players" class="panel players"></aside>
+      <aside class="panel log-panel">
+        <h3>Crónica de la carrera</h3>
+        <ol id="log"></ol>
+      </aside>
+      <div id="actions" class="panel actions"></div>
+    </section>
+
+    <div id="modal" class="modal" hidden><div class="card modal-card" id="modal-content"></div></div>
+    <div id="toast" class="toast" hidden></div>
+    <div id="turn-banner" class="turn-banner" hidden>¡Tu turno!</div>
+    <div id="intro" class="intro" hidden>
+      <span>🎲 Sorteo de salida: ¡lanzamos los dados de los camellos!</span>
+      <button id="intro-skip" type="button">Saltar ⏭</button>
+    </div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

@@ -1,0 +1,6 @@
+node_modules
+dist
+# configuración local del editor
+.claude/
+# reglamento original (material con derechos de autor, no se publica)
+Camel_up.pdf
